@@ -6,6 +6,16 @@ zookeeper:
   ## ref: http://kubernetes.io/docs/user-guide/compute-resources/
   resources: ~
 
+  persistence:
+    ## zookeeper data Persistent Volume Storage Class
+    ## If defined, storageClassName: <storageClass>
+    ## If set to "-", storageClassName: "", which disables dynamic provisioning
+    ## If undefined (the default) or set to null, no storageClassName spec is
+    ##   set, choosing the default provisioner.  (gp2 on AWS, standard on
+    ##   GKE, AWS & OpenStack)
+    ##
+    # storageClass: "-"
+
   ## The JVM heap size to allocate to Zookeeper
   env:
     ZK_HEAP_SIZE: 1G
@@ -170,6 +180,8 @@ hdfs-krb5-k8s:
 ## Global values affecting all sub-charts:
 ## ------------------------------------------------------------------------------
 global:
+  #clusterDomain: cluster.local
+
   ## A list of the local disk directories on cluster nodes that will contain the datanode
   ## blocks. These paths will be mounted to the datanode as K8s HostPath volumes.
   ## In a command line, the list should be enclosed in '{' and '}'.
