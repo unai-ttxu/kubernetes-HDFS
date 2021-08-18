@@ -122,40 +122,27 @@ Create chart name and version as used by the subchart label.
 Create the kerberos principal suffix for core HDFS services
 */}}
 {{- define "hdfs-principal" -}}
-{{- printf "hdfs/_HOST@%s" .Values.global.kerberosRealm -}}
+{{- printf "hdfs/_HOST@%s" .Values.global.kerberos.realm -}}
 {{- end -}}
 
 {{/*
 Create the kerberos principal for HTTP services
 */}}
 {{- define "http-principal" -}}
-{{- printf "HTTP/_HOST@%s" .Values.global.kerberosRealm -}}
+{{- printf "HTTP/_HOST@%s" .Values.global.kerberos.realm -}}
 {{- end -}}
 
 {{/*
 Create the name for a Kubernetes Configmap containing a Kerberos config file.
 */}}
 {{- define "krb5-configmap" -}}
-{{- if .Values.global.kerberosConfigMapOverride -}}
-{{- .Values.global.kerberosConfigMapOverride | trunc 63 | trimSuffix "-" -}}
+{{- if .Values.global.kerberos.configMapOverride -}}
+{{- .Values.global.kerberos.configMapOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
 {{- $name := include "hdfs-k8s.krb5.fullname" . -}}
 {{- printf "%s-config" $name | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 {{- end -}}
-
-{{/*
-Create the name for a Kubernetes Secret containing Kerberos keytabs.
-*/}}
-{{- define "krb5-keytabs-secret" -}}
-{{- if .Values.global.kerberosKeytabsSecretOverride -}}
-{{- .Values.global.kerberosKeytabsSecretOverride | trunc 63 | trimSuffix "-" -}}
-{{- else -}}
-{{- $name := include "hdfs-k8s.krb5.fullname" . -}}
-{{- printf "%s-keytabs" $name | trunc 63 | trimSuffix "-" -}}
-{{- end -}}
-{{- end -}}
-
 
 {{/*
 Create the domain name part of services.

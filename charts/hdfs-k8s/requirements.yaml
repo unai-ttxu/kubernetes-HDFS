@@ -13,13 +13,6 @@ dependencies:
     tags:
       - ha
       - kerberos
-      - simple
-  - name: hdfs-krb5-k8s
-    version: "0.1.0"
-    repository: "file://../hdfs-krb5-k8s"
-    condition: condition.subchart.kerberos
-    tags:
-      - kerberos
   - name: hdfs-journalnode-k8s
     version: "0.1.0"
     repository: "file://../hdfs-journalnode-k8s"
@@ -34,13 +27,6 @@ dependencies:
     tags:
       - ha
       - kerberos
-  # Non-HA namenode. Disabled by default
-  - name: hdfs-simple-namenode-k8s
-    version: "0.1.0"
-    repository: "file://../hdfs-simple-namenode-k8s"
-    condition: condition.subchart.simple-namenode
-    tags:
-      - simple
   - name: hdfs-datanode-k8s
     version: "0.1.0"
     repository: "file://../hdfs-datanode-k8s"
@@ -48,7 +34,6 @@ dependencies:
     tags:
       - ha
       - kerberos
-      - simple
   - name: hdfs-client-k8s
     version: "0.1.0"
     repository: "file://../hdfs-client-k8s"
@@ -56,4 +41,3 @@ dependencies:
     tags:
       - ha
       - kerberos
-      - simple

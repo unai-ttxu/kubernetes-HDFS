@@ -52,8 +52,18 @@ spec:
       labels:
         app: {{ template "hdfs-k8s.datanode.name" . }}
         release: {{ .Release.Name }}
-      {{- if .Values.podAnnotations }}
       annotations:
+      {{- if and .Values.global.kerberos.enabled .Values.global.vault.enabled }}
+        vault.hashicorp.com/agent-init-first: "true"
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
+        vault.hashicorp.com/agent-inject-secret-keytab: {{ .Values.global.kerberos.keytabsVaultPath }}
+        vault.hashicorp.com/secret-volume-path-keytab: /vault/secrets
+        vault.hashicorp.com/ca-cert: /vault/tls/ca.crt
+        vault.hashicorp.com/role: {{ .Values.global.vault.role }}
+        vault.hashicorp.com/tls-secret: keos-ca
+      {{- end }}
+      {{- if .Values.podAnnotations }}
 {{ toYaml .Values.podAnnotations | indent 8 }}
       {{- end }}
     spec:
@@ -88,7 +98,7 @@ spec:
               value: /etc/hadoop-custom-conf
             - name: MULTIHOMED_NETWORK
               value: "0"
-            {{- if and .Values.global.kerberosEnabled .Values.global.jsvcEnabled }}
+            {{- if and .Values.global.kerberos.enabled .Values.global.kerberos.jsvcEnabled }}
             - name: HADOOP_SECURE_DN_USER
               value: root
             - name: JSVC_OUTFILE
@@ -123,7 +133,7 @@ spec:
             - name: hdfs-data-{{ $index }}
               mountPath: /hadoop/dfs/data/{{ $index }}
             {{- end }}
-            {{- if .Values.global.kerberosEnabled }}
+            {{- if .Values.global.kerberos.enabled }}
             - name: kerberos-config
               mountPath: /etc/krb5.conf
               subPath: {{ .Values.global.kerberosConfigFileName }}
@@ -131,29 +141,28 @@ spec:
             - name: kerberos-keytab-copy
               mountPath: /etc/security/
               readOnly: true
-            {{- if .Values.global.jsvcEnabled }}
+            {{- if .Values.global.kerberos.jsvcEnabled }}
             - name: jsvc-home
               mountPath: /jsvc-home
             {{- end }}
             {{- end }}
-      {{- if .Values.global.kerberosEnabled }}
+      {{- if and .Values.global.kerberos.enabled .Values.global.vault.enabled }}
       initContainers:
         - name: copy-kerberos-keytab
           image: busybox:1.27.1
           command: ['sh', '-c']
           args:
-            - cp /kerberos-keytabs/$MY_NODE_NAME.keytab /kerberos-keytab-copy/hdfs.keytab
+            # - cp /kerberos-keytabs/${KEYTAB_NAME}*.keytab /kerberos-keytab-copy/hdfs.keytab
+            - ls /vault/secrets
           env:
-            - name: MY_NODE_NAME
+            - name: KEYTAB_NAME
               valueFrom:
                 fieldRef:
-                  fieldPath: spec.nodeName
+                  fieldPath: metadata.name
           volumeMounts:
-            - name: kerberos-keytabs
-              mountPath: /kerberos-keytabs
             - name: kerberos-keytab-copy
               mountPath: /kerberos-keytab-copy
-        {{- if .Values.global.jsvcEnabled }}
+        {{- if .Values.global.kerberos.jsvcEnabled }}
         - name: copy-jsvc
           # Pull by digest because the image doesn't have tags to pin.
           image: mschlimb/jsvc@sha256:bf20eb9a319e9a2f87473d8da7418d21503a97528b932800b6b8417cd31e30ef
@@ -179,16 +188,13 @@ spec:
         - name: hdfs-config
           configMap:
             name: {{ template "hdfs-k8s.config.fullname" . }}
-        {{- if .Values.global.kerberosEnabled }}
+        {{- if .Values.global.kerberos.enabled }}
         - name: kerberos-config
           configMap:
             name: {{ template "krb5-configmap" . }}
-        - name: kerberos-keytabs
-          secret:
-            secretName: {{ template "krb5-keytabs-secret" . }}
         - name: kerberos-keytab-copy
           emptyDir: {}
-        {{- if .Values.global.jsvcEnabled }}
+        {{- if .Values.global.kerberos.jsvcEnabled }}
         - name: jsvc-home
           emptyDir: {}
         {{- end }}

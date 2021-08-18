@@ -58,7 +58,18 @@ spec:
         app: {{ template "hdfs-k8s.journalnode.name" . }}
         release: {{ .Release.Name }}
       {{- if .Values.podAnnotations }}
-      annotations:
+  annotations:
+      {{- if and .Values.global.kerberos.enabled .Values.global.vault.enabled }}
+        vault.hashicorp.com/agent-init-first: "true"
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
+        vault.hashicorp.com/agent-inject-secret-keytab: {{ .Values.global.kerberos.keytabsVaultPath }}
+        vault.hashicorp.com/secret-volume-path-keytab: /vault/secrets
+        vault.hashicorp.com/ca-cert: /vault/tls/ca.crt
+        vault.hashicorp.com/role: {{ .Values.global.vault.role }}
+        vault.hashicorp.com/tls-secret: keos-ca
+      {{- end }}
+      {{- if .Values.podAnnotations }}
 {{ toYaml .Values.podAnnotations | indent 8 }}
       {{- end }}
     spec:
@@ -115,30 +126,29 @@ spec:
             - name: hdfs-config
               mountPath: /etc/hadoop-custom-conf
               readOnly: true
-           {{- if .Values.global.kerberosEnabled }}
+           {{- if .Values.global.kerberos.enabled }}
             - name: kerberos-config
               mountPath: /etc/krb5.conf
-              subPath: {{ .Values.global.kerberosConfigFileName }}
+              subPath: {{ .Values.global.kerberos.configFileName }}
               readOnly: true
             - name: kerberos-keytab-copy
               mountPath: /etc/security/
               readOnly: true
             {{- end }}
-     {{- if .Values.global.kerberosEnabled }}
+     {{- if and .Values.global.kerberos.enabled .Values.global.vault.enabled }}
       initContainers:
         - name: copy-kerberos-keytab
           image: busybox:1.27.1
           command: ['sh', '-c']
           args:
-            - cp /kerberos-keytabs/${MY_KERBEROS_NAME}*.keytab /kerberos-keytab-copy/hdfs.keytab
+            # - cp /kerberos-keytabs/${KEYTAB_NAME}*.keytab /kerberos-keytab-copy/hdfs.keytab
+            - ls /vault/secrets
           env:
-            - name: MY_KERBEROS_NAME
+            - name: KEYTAB_NAME
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.name
           volumeMounts:
-            - name: kerberos-keytabs
-              mountPath: /kerberos-keytabs
             - name: kerberos-keytab-copy
               mountPath: /kerberos-keytab-copy
       {{- end }}
@@ -147,13 +157,10 @@ spec:
         - name: hdfs-config
           configMap:
             name: {{ template "hdfs-k8s.config.fullname" . }}
-        {{- if .Values.global.kerberosEnabled }}
+        {{- if .Values.global.kerberos.enabled }}
         - name: kerberos-config
           configMap:
             name: {{ template "krb5-configmap" . }}
-        - name: kerberos-keytabs
-          secret:
-            secretName: {{ template "krb5-keytabs-secret" . }}
         - name: kerberos-keytab-copy
           emptyDir: {}
         {{- end }}

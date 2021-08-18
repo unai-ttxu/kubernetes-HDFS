@@ -37,7 +37,7 @@ spec:
             - name: hdfs-config
               mountPath: /etc/hadoop-custom-conf
               readOnly: true
-            {{- if .Values.global.kerberosEnabled }}
+            {{- if .Values.global.kerberos.enabled }}
             - name: kerberos-config
               mountPath: /etc/krb5.conf
               subPath: {{ .Values.global.kerberosConfigFileName }}
@@ -48,7 +48,7 @@ spec:
         - name: hdfs-config
           configMap:
             name: {{ template "hdfs-k8s.config.fullname" . }}
-        {{- if .Values.global.kerberosEnabled }}
+        {{- if .Values.global.kerberos.enabled }}
         - name: kerberos-config
           configMap:
             name: {{ template "krb5-configmap" . }}

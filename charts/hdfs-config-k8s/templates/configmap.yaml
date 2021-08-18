@@ -47,7 +47,6 @@ data:
         <value>{{ $value }}</value>
       </property>
     {{- end }}
-    {{- if .Values.global.namenodeHAEnabled }}
       <property>
         <name>fs.defaultFS</name>
         <value>hdfs://hdfs-k8s</value>
@@ -56,12 +55,6 @@ data:
         <name>ha.zookeeper.quorum</name>
         <value>{{ template "zookeeper-quorum" . }}</value>
       </property>
-    {{- else }}
-      <property>
-        <name>fs.defaultFS</name>
-        <value>hdfs://{{ template "namenode-svc-0" . }}:8020</value>
-      </property>
-    {{- end }}
     </configuration>
   hdfs-site.xml: |
     <?xml version="1.0"?>
@@ -119,7 +112,7 @@ data:
         <name>dfs.datanode.keytab.file</name>
         <value>/etc/security/hdfs.keytab</value>
       </property>
-      {{- if .Values.global.jsvcEnabled }}
+      {{- if .Values.global.kerberos.jsvcEnabled }}
       <property>
         <name>dfs.datanode.address</name>
         <value>0.0.0.0:1004</value>
@@ -136,7 +129,6 @@ data:
         <value>{{ $value }}</value>
       </property>
     {{- end }}
-    {{- if .Values.global.namenodeHAEnabled }}
       <property>
         <name>dfs.nameservices</name>
         <value>hdfs-k8s</value>
@@ -181,7 +173,6 @@ data:
         <name>dfs.client.failover.proxy.provider.hdfs-k8s</name>
         <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
       </property>
-    {{- end }}
       <property>
         <name>dfs.namenode.name.dir</name>
         <value>file:///hadoop/dfs/name</value>
