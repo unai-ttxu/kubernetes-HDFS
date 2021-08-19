@@ -49,30 +49,20 @@ Create the kerberos principal for HTTP services
 Create the keytabs principals list.
 */}}
 {{- define "hdfs-keytabs-principals" -}}
-{{- $principalList := list }}
 {{- $namenodeName := include "hdfs-k8s.namenode.fullname" . -}}
 {{- $replicas := 2 -}}
-{{- range $i, $e := until $replicas }}
-  {{- define "namenodePrincipal" -}}
-    {{- printf "hdfs/%s-%s" .$namenodeName $i -}}
-  {{- end -}}
-  {{- $principalList = append $principalList .namenodePrincipal }}
+{{- range $i, $e := until $replicas -}}
+  - {{ printf "hdfs/%s-%d" $namenodeName $i }}
 {{- end -}}
 {{- $journalnodeName := include "hdfs-k8s.journalnode.fullname" . -}}
 {{- $replicas := .Values.global.journalnodeQuorumSize | int -}}
-{{- range $i, $e := until $replicas }}
-  {{- define "journalnodePrincipal" -}}
-    {{- printf "hdfs/%s-%s" .$journalnodeName $i -}}
-  {{- end -}}
-  {{- $principalList = append $principalList .journalnodePrincipal }}
+{{- range $i, $e := until $replicas -}}
+  - {{ printf "hdfs/%s-%d" $journalnodeName $i }}
 {{- end -}}
 {{- $datanodeName := include "hdfs-k8s.datanode.fullname" . -}}
 {{- $replicas := .Values.global.datanodeQuorumSize | int -}}
-{{- range $i, $e := until $replicas }}
-  {{- define "datanodePrincipal" -}}
-    {{- printf "hdfs/%s-%s" .$datanodeName $i -}}
-  {{- end -}}
-  {{- $principalList = append $principalList .datanodePrincipal }}
+{{- range $i, $e := until $replicas -}}
+  - {{ printf "hdfs/%s-%d" $datanodeName $i }}
 {{- end -}}
 {{- end -}}
 
