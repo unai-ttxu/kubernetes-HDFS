@@ -153,8 +153,6 @@ spec:
                 - /dn-scripts/check-status.sh
             initialDelaySeconds: 60
             periodSeconds: 30
-          securityContext:
-            privileged: true
           volumeMounts:
             - name: dn-scripts
               mountPath: /dn-scripts
@@ -162,7 +160,7 @@ spec:
             - name: hdfs-config
               mountPath: /etc/hadoop-custom-conf
               readOnly: true
-            - name: hdfs-data
+            - name: datadir
               mountPath: /hadoop/dfs/data/
             {{- if .Values.global.kerberos.enabled }}
             - name: kerberos-config
@@ -225,9 +223,14 @@ spec:
           emptyDir: {}
         {{- end }}
         {{- end }}
+      {{- if .Values.global.podSecurityContext.enabled }}
+      securityContext:
+        runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+        fsGroup: {{ .Values.global.podSecurityContext.fsGroup }}
+      {{- end }}
   volumeClaimTemplates:
     - metadata:
-        name: hdfs-data
+        name: datadir
       spec:
         accessModes:
           - {{ .Values.persistence.accessMode | quote }}
