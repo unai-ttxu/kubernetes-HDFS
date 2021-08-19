@@ -159,7 +159,6 @@ Kerberos integration can be enabled by setting a few related options:
   $ helm install -n my-hdfs charts/hdfs-k8s  \
     --set global.kerberos.enabled=true  \
     --set global.kerberos.realm=MYCOMPANY.COM \
-    --set global.kerberos.keytabsVaultPath=my/vault/keytabs \
     --set global.vault.enabled=true
 ```
 

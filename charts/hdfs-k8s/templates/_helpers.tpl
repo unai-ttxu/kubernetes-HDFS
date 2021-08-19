@@ -119,6 +119,21 @@ Create chart name and version as used by the subchart label.
 {{- end -}}
 
 {{/*
+Create the keytabs secrets bundle name
+*/}}
+{{- define "hdfs-k8s.secretsbundle.name" -}}
+{{- template "hdfs-k8s.name" . -}}-keytabs
+{{- end -}}
+
+{{/*
+Create the keytabs secrets bundle Vault path
+*/}}
+{{- define "hdfs-k8s.secretsbundle.vault-path" -}}
+{{- $sbname := include "hdfs-k8s.secretsbundle.name" . -}}
+{{- printf "userland/kerberos/%s.%s" $sbname .Release.Namespace -}}
+{{- end -}}
+
+{{/*
 Create the kerberos principal suffix for core HDFS services
 */}}
 {{- define "hdfs-principal" -}}

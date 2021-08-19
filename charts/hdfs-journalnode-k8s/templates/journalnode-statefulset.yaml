@@ -62,7 +62,7 @@ spec:
         vault.hashicorp.com/agent-init-first: "true"
         vault.hashicorp.com/agent-inject: "true"
         vault.hashicorp.com/agent-pre-populate-only: "true"
-        vault.hashicorp.com/agent-inject-secret-keytab: {{ .Values.global.kerberos.keytabsVaultPath }}
+        vault.hashicorp.com/agent-inject-secret-keytab: {{ template "hdfs-k8s.secretsbundle.vault-path" . }}
         vault.hashicorp.com/secret-volume-path-keytab: /vault/secrets
         vault.hashicorp.com/ca-cert: /vault/tls/ca.crt
         vault.hashicorp.com/role: {{ .Values.global.vault.role }}
