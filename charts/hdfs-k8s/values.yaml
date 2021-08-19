@@ -146,6 +146,9 @@ global:
   ## How many journal nodes to launch as a quorum.
   journalnodeQuorumSize: 3
 
+  ## How many data nodes to launch.
+  datanodeSize: 3
+
   ## Whether or not to enable default affinity setting.
   defaultAffinityEnabled: true
 
