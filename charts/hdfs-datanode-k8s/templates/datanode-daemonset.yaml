@@ -182,7 +182,7 @@ spec:
           command: ['sh', '-c']
           args:
             # - cp /kerberos-keytabs/${KEYTAB_NAME}*.keytab /kerberos-keytab-copy/hdfs.keytab
-            - ls /vault/secrets
+            - sleep 3600
           env:
             - name: KEYTAB_NAME
               valueFrom:
