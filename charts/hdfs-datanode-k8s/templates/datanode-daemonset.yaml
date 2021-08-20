@@ -32,10 +32,32 @@ data:
     done
     echo $_CLUSTER_ID | grep -q -v null
 ---
-# Deleting a daemonset may need some trick. See
-# https://github.com/kubernetes/kubernetes/issues/33245#issuecomment-261250489
-apiVersion: extensions/v1beta1
-kind: DaemonSet
+# A headless service to create DNS records.
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ template "hdfs-k8s.datanode.fullname" . }}
+  labels:
+    app: {{ template "hdfs-k8s.datanode.name" . }}
+    chart: {{ template "hdfs-k8s.subchart" . }}
+    release: {{ .Release.Name }}
+  annotations:
+    # TODO: Deprecated. Replace tolerate-unready-endpoints with
+    # v1.Service.PublishNotReadyAddresses.
+    service.alpha.kubernetes.io/tolerate-unready-endpoints: "true"
+spec:
+  ports:
+  - port: 1006
+    name: dn
+  - port: 50075
+    name: http
+  clusterIP: None
+  selector:
+    app: {{ template "hdfs-k8s.datanode.name" . }}
+    release: {{ .Release.Name }}
+---
+apiVersion: apps/v1
+kind: StatefulSet
 metadata:
   name: {{ template "hdfs-k8s.datanode.fullname" . }}
   labels:
@@ -43,13 +65,29 @@ metadata:
     chart: {{ template "hdfs-k8s.subchart" . }}
     release: {{ .Release.Name }}
 spec:
+  serviceName: {{ template "hdfs-k8s.datanode.fullname" . }}
+  replicas: {{ .Values.global.datanodeSize }}
+  selector:
+    matchLabels:
+      app: {{ template "hdfs-k8s.datanode.name" . }}
+      release: {{ .Release.Name }}
   template:
     metadata:
       labels:
         app: {{ template "hdfs-k8s.datanode.name" . }}
         release: {{ .Release.Name }}
-      {{- if .Values.podAnnotations }}
       annotations:
+      {{- if and .Values.global.kerberos.enabled .Values.global.vault.enabled }}
+        vault.hashicorp.com/agent-init-first: "true"
+        vault.hashicorp.com/agent-inject: "true"
+        vault.hashicorp.com/agent-pre-populate-only: "true"
+        vault.hashicorp.com/agent-inject-secret-keytab: {{ template "hdfs-k8s.secretsbundle.vault-path" . }}
+        vault.hashicorp.com/secret-volume-path-keytab: /vault/secrets
+        vault.hashicorp.com/ca-cert: /vault/tls/ca.crt
+        vault.hashicorp.com/role: {{ .Values.global.vault.role }}
+        vault.hashicorp.com/tls-secret: keos-ca
+      {{- end }}
+      {{- if .Values.podAnnotations }}
 {{ toYaml .Values.podAnnotations | indent 8 }}
       {{- end }}
     spec:
@@ -58,12 +96,19 @@ spec:
 {{ toYaml .Values.affinity | indent 8 }}
       {{- else if .Values.global.defaultAffinityEnabled }}
       affinity:
-        nodeAffinity:
+        podAntiAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                - key: {{ template "hdfs-k8s.datanode.fullname" . }}-exclude
-                  operator: DoesNotExist
+            - labelSelector:
+                matchExpressions:
+                  - key: "app"
+                    operator: In
+                    values:
+                      - {{ template "hdfs-k8s.datanode.name" . }}
+                  - key: "release"
+                    operator: In
+                    values:
+                      - {{ .Release.Name }}
+              topologyKey: "kubernetes.io/hostname"
       {{- end }}
       {{- if .Values.nodeSelector }}
       nodeSelector:
@@ -73,9 +118,6 @@ spec:
       tolerations:
 {{ toYaml .Values.tolerations | indent 8 }}
       {{- end }}
-      hostNetwork: true
-      hostPID: true
-      dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: datanode
           image: uhopper/hadoop-datanode:2.7.2
@@ -84,7 +126,7 @@ spec:
               value: /etc/hadoop-custom-conf
             - name: MULTIHOMED_NETWORK
               value: "0"
-            {{- if and .Values.global.kerberosEnabled .Values.global.jsvcEnabled }}
+            {{- if and .Values.global.kerberos.enabled .Values.global.kerberos.jsvcEnabled }}
             - name: HADOOP_SECURE_DN_USER
               value: root
             - name: JSVC_OUTFILE
@@ -94,6 +136,11 @@ spec:
             - name: JSVC_HOME
               value: /jsvc-home
             {{- end }}
+          ports:
+          - containerPort: 1006
+            name: dn
+          - containerPort: 50075
+            name: http
           livenessProbe:
             exec:
               command:
@@ -106,8 +153,6 @@ spec:
                 - /dn-scripts/check-status.sh
             initialDelaySeconds: 60
             periodSeconds: 30
-          securityContext:
-            privileged: true
           volumeMounts:
             - name: dn-scripts
               mountPath: /dn-scripts
@@ -115,41 +160,39 @@ spec:
             - name: hdfs-config
               mountPath: /etc/hadoop-custom-conf
               readOnly: true
-            {{- range $index, $path := .Values.global.dataNodeHostPath }}
-            - name: hdfs-data-{{ $index }}
-              mountPath: /hadoop/dfs/data/{{ $index }}
-            {{- end }}
-            {{- if .Values.global.kerberosEnabled }}
+            - name: datadir
+              mountPath: /hadoop/dfs/data/
+            {{- if .Values.global.kerberos.enabled }}
             - name: kerberos-config
               mountPath: /etc/krb5.conf
-              subPath: {{ .Values.global.kerberosConfigFileName }}
+              subPath: {{ .Values.global.kerberos.configFileName }}
               readOnly: true
             - name: kerberos-keytab-copy
               mountPath: /etc/security/
               readOnly: true
-            {{- if .Values.global.jsvcEnabled }}
+            {{- if .Values.global.kerberos.jsvcEnabled }}
             - name: jsvc-home
               mountPath: /jsvc-home
             {{- end }}
             {{- end }}
-      {{- if .Values.global.kerberosEnabled }}
+      {{- if and .Values.global.kerberos.enabled .Values.global.vault.enabled }}
       initContainers:
         - name: copy-kerberos-keytab
           image: busybox:1.27.1
           command: ['sh', '-c']
           args:
-            - cp /kerberos-keytabs/$MY_NODE_NAME.keytab /kerberos-keytab-copy/hdfs.keytab
+            - |
+              grep "hdfs/${POD_NAME}\..*keytab" /vault/secrets/keytab | awk '{ print $2 }' | base64 -d > /kerberos-keytab-copy/hdfs.keytab
+              grep "HTTP/${POD_NAME}\..*keytab" /vault/secrets/keytab | awk '{ print $2 }' | base64 -d > /kerberos-keytab-copy/http.keytab
           env:
-            - name: MY_NODE_NAME
+            - name: POD_NAME
               valueFrom:
                 fieldRef:
-                  fieldPath: spec.nodeName
+                  fieldPath: metadata.name
           volumeMounts:
-            - name: kerberos-keytabs
-              mountPath: /kerberos-keytabs
             - name: kerberos-keytab-copy
               mountPath: /kerberos-keytab-copy
-        {{- if .Values.global.jsvcEnabled }}
+        {{- if .Values.global.kerberos.jsvcEnabled }}
         - name: copy-jsvc
           # Pull by digest because the image doesn't have tags to pin.
           image: mschlimb/jsvc@sha256:bf20eb9a319e9a2f87473d8da7418d21503a97528b932800b6b8417cd31e30ef
@@ -167,25 +210,42 @@ spec:
           configMap:
             name: {{ template "hdfs-k8s.datanode.fullname" . }}-scripts
             defaultMode: 0744
-        {{- range $index, $path := .Values.global.dataNodeHostPath }}
-        - name: hdfs-data-{{ $index }}
-          hostPath:
-            path: {{ $path }}
-        {{- end }}
         - name: hdfs-config
           configMap:
             name: {{ template "hdfs-k8s.config.fullname" . }}
-        {{- if .Values.global.kerberosEnabled }}
+        {{- if .Values.global.kerberos.enabled }}
         - name: kerberos-config
           configMap:
             name: {{ template "krb5-configmap" . }}
-        - name: kerberos-keytabs
-          secret:
-            secretName: {{ template "krb5-keytabs-secret" . }}
         - name: kerberos-keytab-copy
           emptyDir: {}
-        {{- if .Values.global.jsvcEnabled }}
+        {{- if .Values.global.kerberos.jsvcEnabled }}
         - name: jsvc-home
           emptyDir: {}
         {{- end }}
         {{- end }}
+      {{- if .Values.global.podSecurityContext.enabled }}
+      securityContext:
+        runAsUser: {{ .Values.global.podSecurityContext.runAsUser }}
+        fsGroup: {{ .Values.global.podSecurityContext.fsGroup }}
+      {{- end }}
+  volumeClaimTemplates:
+    - metadata:
+        name: datadir
+      spec:
+        accessModes:
+          - {{ .Values.persistence.accessMode | quote }}
+        resources:
+          requests:
+            storage: {{ .Values.persistence.size | quote }}
+      {{- if .Values.persistence.storageClass }}
+        {{- if (eq "-" .Values.persistence.storageClass) }}
+        storageClassName: ""
+        {{- else }}
+        storageClassName: "{{ .Values.persistence.storageClass }}"
+        {{- end }}
+      {{- end }}
+      {{- if .Values.persistence.selector }}
+        selector:
+{{ toYaml .Values.persistence.selector | indent 10 }}
+      {{- end }}

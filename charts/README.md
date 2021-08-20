@@ -52,13 +52,6 @@ Here is the list of all charts.
     By default, we will launch three journalnode servers.
   - hdfs-client-k8s: a pod that is configured to run Hadoop client commands
     for accessing HDFS.
-  - hdfs-krb5-k8s: a size-1 statefulset and other K8s components for launching
-    a Kerberos server, which can be used to secure HDFS. Disabled by default.
-  - hdfs-simple-namenode-k8s: Disabled by default. A simpler setup of the
-    namenode that launches only one namenode. i.e. This does not support HA. It
-    does not support Kerberos nor persistent volumes either. As it does not
-    support HA, we also don't need zookeeper nor journal nodes.  You may prefer
-    this if you want the simplest possible setup.
 
 # Prerequisite
 
@@ -108,12 +101,6 @@ set these options.
     `hdfs-journalnode-k8s.persistence.storageClass`, or
     `hdfs-journalnode-k8s.persistence.selector` respectively. For details, see the
     values.yaml file inside `hdfs-journalnode-k8s` chart dir.
-  - kerberos: The single Kerberos server will need at least 20 GB in the volume.
-    The size can be overridden by the `hdfs-krb5-k8s.persistence.size` option.
-    You can also override the storage class or the selector using
-    `hdfs-krb5-k8s.persistence.storageClass`, or
-    `hdfs-krb5-k8s.persistence.selector` respectively. For details, see the
-    values.yaml file inside `hdfs-krb5-k8s` chart dir.
 
 Then launch the main chart. Specify the chart release name say "my-hdfs",
 which will be the prefix of the K8s resource names for the HDFS components.
@@ -166,114 +153,20 @@ Finally, test with the client pod:
 
 ## Kerberos
 
-Kerberos can be enabled by setting a few related options:
+Kerberos integration can be enabled by setting a few related options:
 
 ```
   $ helm install -n my-hdfs charts/hdfs-k8s  \
-    --set global.kerberosEnabled=true  \
-    --set global.kerberosRealm=MYCOMPANY.COM  \
-    --set tags.kerberos=true
+    --set global.kerberos.enabled=true  \
+    --set global.kerberos.realm=MYCOMPANY.COM \
+    --set global.vault.enabled=true
 ```
 
-This will launch all charts including the Kerberos server, which will become
-ready pretty soon. However, HDFS daemon charts will be blocked as the deamons
-require Kerberos service principals to be available. So we need to unblock
-them by creating those principals.
+This will configure all charts to use Kerberos server.
 
-First, create a configmap containing the common Kerberos config file:
+To enable Kerberos integration we need to ensure Kerberos service keytabs are available.
 
-```
-  _MY_DIR=~/krb5
-  mkdir -p $_MY_DIR
-  _KDC=$(kubectl get pod -l app=hdfs-krb5,release=my-hdfs --no-headers  \
-      -o name | cut -d/ -f2)
-  _run kubectl cp $_KDC:/etc/krb5.conf $_MY_DIR/tmp/krb5.conf
-  _run kubectl create configmap my-hdfs-krb5-config  \
-    --from-file=$_MY_DIR/tmp/krb5.conf
-```
-
-Second, create the service principals and passwords. Kerberos requires service
-principals to be host specific. Some HDFS daemons are associated with your K8s
-cluster nodes' physical host names say kube-n1.mycompany.com, while others are
-associated with Kubernetes virtual service names, for instance
-my-hdfs-namenode-0.my-hdfs-namenode.default.svc.cluster.local. You can get
-the list of these host names like:
-
-```
-  $ _HOSTS=$(kubectl get nodes  \
-    -o=jsonpath='{.items[*].status.addresses[?(@.type == "Hostname")].address}')
-
-  $ _HOSTS+=$(kubectl describe configmap my-hdfs-config |  \
-      grep -A 1 -e dfs.namenode.rpc-address.hdfs-k8s  \
-          -e dfs.namenode.shared.edits.dir |  
-      grep "<value>" |
-      sed -e "s/<value>//"  \
-          -e "s/<\/value>//"  \
-          -e "s/:8020//"  \
-          -e "s/qjournal:\/\///"  \
-          -e "s/:8485;/ /g"  \
-          -e "s/:8485\/hdfs-k8s//")
-```
-
-Then generate per-host principal accounts and password keytab files.
-
-```
-  $ _SECRET_CMD="kubectl create secret generic my-hdfs-krb5-keytabs"
-  $ for _HOST in $_HOSTS; do
-      kubectl exec $_KDC -- kadmin.local -q  \
-        "addprinc -randkey hdfs/$_HOST@MYCOMPANY.COM"
-      kubectl exec $_KDC -- kadmin.local -q  \
-        "addprinc -randkey HTTP/$_HOST@MYCOMPANY.COM"
-      kubectl exec $_KDC -- kadmin.local -q  \
-        "ktadd -norandkey -k /tmp/$_HOST.keytab hdfs/$_HOST@MYCOMPANY.COM HTTP/$_HOST@MYCOMPANY.COM"
-      kubectl cp $_KDC:/tmp/$_HOST.keytab $_MY_DIR/tmp/$_HOST.keytab
-      _SECRET_CMD+=" --from-file=$_MY_DIR/tmp/$_HOST.keytab"
-    done
-```
-
-The above was building a command using a shell variable `SECRET_CMD` for
-creating a K8s secret that contains all keytab files. Run the command to create
-the secret.
-
-```
-  $ $_SECRET_CMD
-```
-
-This will unblock all HDFS daemon pods. Wait until they become ready.
-
-Finally, test the setup using the following commands:
-
-```
-  $ _NN0=$(kubectl get pods -l app=hdfs-namenode,release=my-hdfs -o name |  \
-      head -1 |  \
-      cut -d/ -f2)
-  $ kubectl exec $_NN0 -- sh -c "(apt install -y krb5-user > /dev/null)"  \
-      || true
-  $ kubectl exec $_NN0 --   \
-      kinit -kt /etc/security/hdfs.keytab  \
-      hdfs/my-hdfs-namenode-0.my-hdfs-namenode.default.svc.cluster.local@MYCOMPANY.COM
-  $ kubectl exec $_NN0 -- hdfs dfsadmin -report
-  $ kubectl exec $_NN0 -- hdfs haadmin -getServiceState nn0
-  $ kubectl exec $_NN0 -- hdfs haadmin -getServiceState nn1
-  $ kubectl exec $_NN0 -- hadoop fs -rm -r -f /tmp
-  $ kubectl exec $_NN0 -- hadoop fs -mkdir /tmp
-  $ kubectl exec $_NN0 -- hadoop fs -chmod 0777 /tmp
-  $ kubectl exec $_KDC -- kadmin.local -q  \
-      "addprinc -randkey user1@MYCOMPANY.COM"
-  $ kubectl exec $_KDC -- kadmin.local -q  \
-      "ktadd -norandkey -k /tmp/user1.keytab user1@MYCOMPANY.COM"
-  $ kubectl cp $_KDC:/tmp/user1.keytab $_MY_DIR/tmp/user1.keytab
-  $ kubectl cp $_MY_DIR/tmp/user1.keytab $_CLIENT:/tmp/user1.keytab
-
-  $ kubectl exec $_CLIENT -- sh -c "(apt install -y krb5-user > /dev/null)"  \
-      || true
-
-  $ kubectl exec $_CLIENT -- kinit -kt /tmp/user1.keytab user1@MYCOMPANY.COM
-  $ kubectl exec $_CLIENT -- sh -c  \
-      "(head -c 100M < /dev/urandom > /tmp/random-100M)"
-  $ kubectl exec $_CLIENT -- hadoop fs -ls /
-  $ kubectl exec $_CLIENT -- hadoop fs -copyFromLocal /tmp/random-100M /tmp
-```
+In order to create Kerberos keytabs we use Stratio Secrets Operator.
 
 ## Advanced options
 
@@ -341,42 +234,7 @@ a datanode. To prevent this, label the cluster nodes with
   $ kubectl label node YOUR-CLUSTER-NODE hdfs-datanode-exclude=yes
 ```
 
-### Launching with a non-HA namenode
-
-You may want non-HA namenode since it is the simplest possible setup.
-Note this won't launch zookeepers nor journalnodes.
-
-The single namenode is supposed to be pinned to a cluster host using a node
-label.  Attach a label to one of your K8s cluster node.
-
-```
-  $ kubectl label nodes YOUR-CLUSTER-NODE hdfs-namenode-selector=hdfs-namenode-0
-```
-
-The non-HA setup does not even use persistent vlumes. So you don't even
-need to prepare persistent volumes. Instead, it is using hostPath volume
-of the pinned cluster node. So, just launch the chart while
-setting options to turn off HA. You should add the nodeSelector option
-so that the single namenode would find the hostPath volume of the same cluster
-node when the pod restarts.
-
-```
-  $ helm install -n my-hdfs charts/hdfs-k8s  \
-      --set tags.ha=false  \
-      --set tags.simple=true  \
-      --set global.namenodeHAEnabled=false  \
-      --set hdfs-simple-namenode-k8s.nodeSelector.hdfs-namenode-selector=hdfs-namenode-0
-```
-
 # Security
-
-## K8s secret containing Kerberos keytab files
-
-The Kerberos setup creates a K8s secret containing all the keytab files of HDFS
-daemon service princialps. This will be mounted onto HDFS daemon pods. You may
-want to restrict access to this secret using k8s
-[RBAC](https://kubernetes.io/docs/admin/authorization/rbac/), to minimize
-exposure of the keytab files.
 
 ## HostPath volumes
 `Datanode` daemons run on every cluster node. They also mount k8s `hostPath`

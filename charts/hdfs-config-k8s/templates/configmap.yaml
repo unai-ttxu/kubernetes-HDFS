@@ -11,7 +11,7 @@ data:
     <?xml version="1.0"?>
     <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
     <configuration>
-    {{- if .Values.global.kerberosEnabled }}
+    {{- if .Values.global.kerberos.enabled }}
       <property>
         <name>hadoop.security.authentication</name>
         <value>kerberos</value>
@@ -47,7 +47,6 @@ data:
         <value>{{ $value }}</value>
       </property>
     {{- end }}
-    {{- if .Values.global.namenodeHAEnabled }}
       <property>
         <name>fs.defaultFS</name>
         <value>hdfs://hdfs-k8s</value>
@@ -56,18 +55,12 @@ data:
         <name>ha.zookeeper.quorum</name>
         <value>{{ template "zookeeper-quorum" . }}</value>
       </property>
-    {{- else }}
-      <property>
-        <name>fs.defaultFS</name>
-        <value>hdfs://{{ template "namenode-svc-0" . }}:8020</value>
-      </property>
-    {{- end }}
     </configuration>
   hdfs-site.xml: |
     <?xml version="1.0"?>
     <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
     <configuration>
-    {{- if .Values.global.kerberosEnabled }}
+    {{- if .Values.global.kerberos.enabled }}
       <property>
         <name>dfs.block.access.token.enable</name>
         <value>true</value>
@@ -80,20 +73,21 @@ data:
         <name>dfs.namenode.kerberos.principal</name>
         <value>{{ template "hdfs-principal" . }}</value>
       </property>
-      {{/*
-      TODO: Check if the https principal is no longer needed in newer Hadoop version.
-      */}}
       <property>
-        <name>dfs.namenode.kerberos.https.principal</name>
+        <name>dfs.namenode.kerberos.internal.spnego.principal</name>
         <value>{{ template "http-principal" . }}</value>
+      </property>
+      <property>
+        <name>dfs.namenode.keytab.file</name>
+        <value>/etc/security/hdfs.keytab</value>
       </property>
       <property>
         <name>dfs.web.authentication.kerberos.principal</name>
         <value>{{ template "http-principal" . }}</value>
       </property>
       <property>
-        <name>dfs.namenode.keytab.file</name>
-        <value>/etc/security/hdfs.keytab</value>
+        <name>dfs.web.authentication.kerberos.keytab</name>
+        <value>/etc/security/http.keytab</value>
       </property>
       <property>
         <name>dfs.journalnode.kerberos.principal</name>
@@ -112,14 +106,10 @@ data:
         <value>{{ template "hdfs-principal" . }}</value>
       </property>
       <property>
-        <name>dfs.datanode.kerberos.https.principal</name>
-        <value>{{ template "http-principal" . }}</value>
-      </property>
-      <property>
         <name>dfs.datanode.keytab.file</name>
         <value>/etc/security/hdfs.keytab</value>
       </property>
-      {{- if .Values.global.jsvcEnabled }}
+      {{- if .Values.global.kerberos.jsvcEnabled }}
       <property>
         <name>dfs.datanode.address</name>
         <value>0.0.0.0:1004</value>
@@ -136,7 +126,6 @@ data:
         <value>{{ $value }}</value>
       </property>
     {{- end }}
-    {{- if .Values.global.namenodeHAEnabled }}
       <property>
         <name>dfs.nameservices</name>
         <value>hdfs-k8s</value>
@@ -181,7 +170,6 @@ data:
         <name>dfs.client.failover.proxy.provider.hdfs-k8s</name>
         <value>org.apache.hadoop.hdfs.server.namenode.ha.ConfiguredFailoverProxyProvider</value>
       </property>
-    {{- end }}
       <property>
         <name>dfs.namenode.name.dir</name>
         <value>file:///hadoop/dfs/name</value>
