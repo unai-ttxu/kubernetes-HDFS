@@ -228,8 +228,7 @@ spec:
           image: busybox:1.27.1
           command: ['sh', '-c']
           args:
-            # - cp /kerberos-keytabs/${KEYTAB_NAME}*.keytab /kerberos-keytab-copy/hdfs.keytab
-            - sleep 3600
+            - grep ${KEYTAB_NAME}_keytab /vault/secrets/keytab | awk '{ print $2 }' | base64 -d > /kerberos-keytab-copy/hdfs.keytab
           env:
             - name: KEYTAB_NAME
               valueFrom:
