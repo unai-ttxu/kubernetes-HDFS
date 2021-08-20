@@ -46,29 +46,37 @@ Create the kerberos principal for HTTP services
 {{- end -}}
 
 {{/*
-Create the keytabs principals list.
+Create the keytabs principals list. The below uses two loops to make sure the
+last item does not have comma. It uses index 0 for the last item since that is
+the only special index that helm template gives us.
 */}}
 {{- define "hdfs-keytabs-principals" -}}
-{{- $namenodeName := include "hdfs-k8s.namenode.fullname" . -}}
-{{- $replicas := 2 -}}
-{{- range $i, $e := until $replicas -}}
-  - {{ printf "hdfs/%s-%d" $namenodeName $i }}
-{{- end -}}
 {{- $journalnodeName := include "hdfs-k8s.journalnode.fullname" . -}}
 {{- $replicas := .Values.global.journalnodeQuorumSize | int -}}
-{{- range $i, $e := until $replicas -}}
-  - {{ printf "hdfs/%s-%d" $journalnodeName $i }}
+{{- range $index, $e := until $replicas -}}
+  {{ printf "hdfs/%s-%d" $journalnodeName $index }},
 {{- end -}}
 {{- $datanodeName := include "hdfs-k8s.datanode.fullname" . -}}
-{{- $replicas := .Values.global.datanodeQuorumSize | int -}}
-{{- range $i, $e := until $replicas -}}
-  - {{ printf "hdfs/%s-%d" $datanodeName $i }}
+{{- $replicas := .Values.global.datanodeSize | int -}}
+{{- range $index, $e := until $replicas -}}
+  {{ printf "hdfs/%s-%d" $datanodeName $index }},
+{{- end -}}
+{{- $namenodeName := include "hdfs-k8s.namenode.fullname" . -}}
+{{- $replicas := 2 -}}
+{{- range $index, $e := until $replicas -}}
+  {{- if ne $index 0 -}}
+    {{ printf "hdfs/%s-%d" $namenodeName $index }},
+  {{- end -}}
+{{- end -}}
+{{- range $index, $e := until $replicas -}}
+  {{- if eq $index 0 -}}
+    {{ printf "hdfs/%s-%d" $namenodeName $index }}
+  {{- end -}}
 {{- end -}}
 {{- end -}}
-
 
 {{/*
-Create the datanode data dir list.  The below uses two loops to make sure the
+Create the datanode data dir list. The below uses two loops to make sure the
 last item does not have comma. It uses index 0 for the last item since that is
 the only special index that helm template gives us.
 */}}
