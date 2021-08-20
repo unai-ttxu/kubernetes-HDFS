@@ -11,7 +11,7 @@ data:
     <?xml version="1.0"?>
     <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
     <configuration>
-    {{- if .Values.global.kerberosEnabled }}
+    {{- if .Values.global.kerberos.enabled }}
       <property>
         <name>hadoop.security.authentication</name>
         <value>kerberos</value>
@@ -60,7 +60,7 @@ data:
     <?xml version="1.0"?>
     <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
     <configuration>
-    {{- if .Values.global.kerberosEnabled }}
+    {{- if .Values.global.kerberos.enabled }}
       <property>
         <name>dfs.block.access.token.enable</name>
         <value>true</value>
