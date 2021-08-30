@@ -24,7 +24,8 @@ spec:
     spec:
       containers:
         - name: hdfs-client
-          image: uhopper/hadoop:2.7.2
+          image: {{ .Values.image.repository}}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: HADOOP_CUSTOM_CONF_DIR
               value: /etc/hadoop-custom-conf

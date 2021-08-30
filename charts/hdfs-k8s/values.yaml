@@ -24,16 +24,26 @@ zookeeper:
   replicaCount: 3
 
 ## ------------------------------------------------------------------------------
+## hdfs-client-k8s:
+## ------------------------------------------------------------------------------
+hdfs-client-k8s:
+  # Docker images information
+  image:
+    repository: uhopper/hadoop
+    tag: 2.7.2
+    pullPolicy: IfNotPresent
+
+## ------------------------------------------------------------------------------
 ## hdfs-config-k8s:
 ## ------------------------------------------------------------------------------
 hdfs-config-k8s:
   ## Custom hadoop config keys passed to the hdfs configmap as extra keys.
   customHadoopConfig:
-     coreSite: {}
+    coreSite: {}
       ## Set config key and value pairs, e.g.
       # hadoop.http.authentication.type: kerberos
 
-     hdfsSite: {}
+    hdfsSite: {}
       ## Set config key and value pairs, e.g.
       # dfs.datanode.use.datanode.hostname: "false"
 
@@ -62,6 +72,17 @@ hdfs-journalnode-k8s:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+  # Docker images information
+  image:
+    repository: uhopper/hadoop-namenode
+    tag: 2.7.2
+    pullPolicy: IfNotPresent
+  
+  initKeytabImage:
+    repository: busybox
+    tag: 1.27.1
+    pullPolicy: IfNotPresent
 
 ## ------------------------------------------------------------------------------
 ## hdfs-namenode-k8s:
@@ -105,6 +126,17 @@ hdfs-namenode-k8s:
   tolerations: []
   affinity: {}
 
+  # Docker images information
+  image:
+    repository: uhopper/hadoop-namenode
+    tag: 2.7.2
+    pullPolicy: IfNotPresent
+
+  initKeytabImage:
+    repository: busybox
+    tag: 1.27.1
+    pullPolicy: IfNotPresent
+
 ## ------------------------------------------------------------------------------
 ## hdfs-datanode-k8s:
 ## ------------------------------------------------------------------------------
@@ -130,6 +162,22 @@ hdfs-datanode-k8s:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+  # Docker images information
+  image:
+    repository: uhopper/hadoop-datanode
+    tag: 2.7.2
+    pullPolicy: IfNotPresent
+    
+  initKeytabImage:
+    repository: busybox
+    tag: 1.27.1
+    pullPolicy: IfNotPresent
+    
+  initJsvcImage:
+    repository: mschlimb/jsvc
+    tag: sha256:bf20eb9a319e9a2f87473d8da7418d21503a97528b932800b6b8417cd31e30ef
+    pullPolicy: IfNotPresent
 
 ## ------------------------------------------------------------------------------
 ## Global values affecting all sub-charts:
