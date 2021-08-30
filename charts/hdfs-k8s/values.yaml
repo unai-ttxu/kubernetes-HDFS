@@ -176,7 +176,7 @@ hdfs-datanode-k8s:
     
   initJsvcImage:
     repository: mschlimb/jsvc
-    tag: sha256:bf20eb9a319e9a2f87473d8da7418d21503a97528b932800b6b8417cd31e30ef
+    tag: latest
     pullPolicy: IfNotPresent
 
 ## ------------------------------------------------------------------------------
