@@ -196,8 +196,7 @@ spec:
               mountPath: /kerberos-keytab-copy
         {{- if .Values.global.kerberos.jsvcEnabled }}
         - name: copy-jsvc
-          # Pull by digest because the image doesn't have tags to pin.
-          image: {{ .Values.initJsvcImage.repository }}@{{ .Values.initJsvcImage.tag }}
+          image: {{ .Values.initJsvcImage.repository }}:{{ .Values.initJsvcImage.tag }}
           imagePullPolicy: {{ .Values.initJsvcImage.pullPolicy }}
           command: ['sh', '-c']
           args:
